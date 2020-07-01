@@ -26,7 +26,7 @@ void machine_clear_coins(void);
 
 int machine_puchase_product(Product *);
 int machine_refill_product(Product*);
-void machine_change_product(Product *, char *, int, int);
+void machine_change_product(Product *product_p, char *name, int price, int qty);
 
 extern struct Machine machine;
 #endif

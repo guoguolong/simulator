@@ -7,16 +7,20 @@
 #include <string.h>
 #include <stdlib.h>
 #include <csv.h>
+#include <hashmap.h>
 #include "includes/product.h"
 
-Product *product_link;
 char *data_path;
+map_t product_map;
+int labels_count = 0;
 
 void parse(FILE *fp) {
     Product *prev_product, *head_product;
     int max_line_size = 1024;
     int err, done = 0;
     int is_first_row = 1;
+    product_map = hashmap_new();    
+    Product* product_link;
     while (!done) {
         char *line = fread_csv_line(fp, max_line_size, &done, &err);
         char **parsed = parse_csv(line);
@@ -27,46 +31,37 @@ void parse(FILE *fp) {
         
         char **ptr = parsed;
         if (strcmp(*ptr, "") != 0) { // 剔除非法空行.
-            product_link = (Product*)malloc(sizeof(Product));
-            if (*ptr) {
-                product_link->code= *ptr[0];
-            }
+            Product *real_prod = (Product*)malloc(sizeof(Product));
 
+            // product code
+            real_prod->code = *ptr[0];
+    
+            // product name
             ++ptr;
             if (*ptr) {
-                product_link->name= (char *)malloc(strlen(*ptr));
-                strcpy(product_link->name, *ptr);
+                real_prod->name= (char *)malloc(strlen(*ptr));
+                strcpy(real_prod->name, *ptr);
             }
             
-            ++ptr;
-            if (*ptr) {        
-                sscanf(*ptr, "%d", &product_link->price);
-            }
+            // product price
             ++ptr;
             if (*ptr) {
-                sscanf(*ptr, "%d", &product_link->stock);
+                sscanf(*ptr, "%d", &real_prod->price);
             }
 
-            product_link->next = NULL;
-            if (is_first_row) {
-                head_product = product_link;
-            } else {
-                prev_product->next = product_link;
+            // product stock
+            ++ptr;
+            if (*ptr) {
+                sscanf(*ptr, "%d", &real_prod->stock);
             }
-            product_link->head = head_product;
-            is_first_row = 0;
-            prev_product = product_link;
 
+
+            char *key_code = (char *)malloc(sizeof(char));
+            sprintf(key_code, "%c", real_prod->code);
+            hashmap_put(product_map, key_code, real_prod);
         }
         free_csv_line(parsed);
     }
-    // 最后一个伪元素.便于使用next遍历.
-    Product * last_p = (Product*)malloc(sizeof(Product));
-    last_p->next = NULL;
-    last_p->head = head_product;
-    product_link->next = last_p;
-
-    product_link = head_product; // reset 指针.
 }
 
 int load_data(char *bin_dir) {
@@ -85,77 +80,89 @@ int load_data(char *bin_dir) {
     return errno;
 }
 
-Product* product_get_first() {
-    product_link = product_link->head;
-    return product_link;
+int _labels_each_one(any_t handler, any_t data) {
+    Product* prod_link = (Product*) data;
+    char **ptr = (char**) handler;
+    ptr += labels_count;
+
+    *ptr = (char *)malloc(100);
+    sprintf(*ptr, "%c. %s", prod_link->code, prod_link->name);
+
+    labels_count++;
+    return MAP_OK;
 }
 
 char** product_labels(int go_back) {
-    char **labels = malloc(sizeof(char *) * 10);
+    char **labels = (char**)malloc(sizeof(char *) * 10);
+    char **ptr = labels;
+    hashmap_iterate(product_map, _labels_each_one, ptr);
 
-    int pp = 0;
-    product_link = product_link->head;
-    while(product_link->next) {
-        labels[pp] = (char *)malloc(100);
-        sprintf(labels[pp], "%c. %s", product_link->code, product_link->name);
-        product_link = product_link->next;
-        pp++;
-    }
+    ptr = ptr + labels_count;
     if (go_back == 1) {
-        labels[pp] = (char *)malloc(100);
-        sprintf(labels[pp], "%s", "0. Go back");
-        pp++;
+        *ptr = (char *)malloc(100);
+        sprintf(*ptr, "%s", "0. Go back");
     }
-    labels[pp] = NULL;
+    ptr++;
+    *ptr = NULL;
+    labels_count = 0;
     return labels;
+}
+
+int _list_each_one(any_t handler, any_t data) {
+    Product* product_link = (Product*)data;
+    printf("%c. %s ($%d)\n", product_link->code, product_link->name, product_link->price);
+    return MAP_OK;
 }
 
 void list() {
     printf("(1) The displayed products are: \n");
-    product_link = product_link->head;
-    while(product_link->next) {
-        printf("%c. %s ($%d)\n", product_link->code, product_link->name, product_link->price);
-        product_link = product_link->next;
-    }
+    hashmap_iterate(product_map, _list_each_one, NULL);
 }
 
 Product* find_one(char code) {
-    Product *product = NULL;
+    Product *product = (Product *)malloc(sizeof(Product));
     if (code >= 'a' && code <= 'z') {
         code -= 32;
     }
-    product_link = product_link->head;
-    while(product_link->next) {
-        if (product_link->code == code) {
-            product = product_link;
-            break;
-        }
-        product_link = product_link->next;
+    char *key_code = (char *)malloc(sizeof(char));
+    sprintf(key_code, "%c", code);
+    int error = hashmap_get(product_map, key_code, (void**)(&product));
+    if (error != MAP_OK) {
+        product = NULL;
     }
+    free(key_code);
     return product;
 }
 
+int _flush_each_one(any_t fp, any_t data) {
+    Product* pl = (Product*)data;
+    fprintf(fp, "%c,%s,%d,%d\n", pl->code, pl->name, pl->price, pl->stock);    
+    return MAP_OK;
+}
+
 void flush() {
-    Product *pl = product_link->head;
     FILE *fp = fopen(data_path, "w+");
     fprintf(fp, "%s\n", "编码,名字,价格,库存");
-    while(pl->next) {
-        fprintf(fp, "%c,%s,%d,%d\n", pl->code, pl->name, pl->price, pl->stock);
-        pl = pl->next;
-    }
+
+    hashmap_iterate(product_map, _flush_each_one, fp);
     fclose(fp);
 }
 
+int _reset_each_one(any_t handler, any_t data) {
+    Product* prod_link = (Product*) data;
+    prod_link->stock = 10;
+    return MAP_OK;
+}
 void reset() {
-    Product *pl = product_link->head;
-    while(pl->next) {
-        pl->stock = 10;
-        pl = pl->next;
-    }
+    hashmap_iterate(product_map, _reset_each_one, NULL);    
     flush();
 }
 
+map_t get_map() {
+    return product_map;
+}
+
 ProductService product_factory_make() {
-    ProductService srv = {find_one, list, flush, load_data, reset};
+    ProductService srv = {find_one, list, flush, load_data, reset, get_map, product_labels};
     return srv;
 }

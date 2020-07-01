@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "includes/machine.h"
+#include <hashmap.h>
 
 struct Machine machine;
 char *datafile_path;
@@ -46,23 +47,29 @@ void machine_reset() {
     _flush_machine();
 }
 
+int _each_product_status(any_t handler, any_t item) {
+    Product* prd_link = (Product*)item;
+
+    char *stock_info = (char *)malloc(100);
+    sprintf(stock_info, "%s", "sold out");
+
+    if (prd_link->stock > 0) {
+        sprintf(stock_info, "%d left", prd_link->stock);
+    }
+    printf("%c. %s ($%d) (%s)\n", prd_link->code, prd_link->name, prd_link->price, stock_info);
+    free(stock_info);
+    return MAP_OK;
+}
 void machine_status_show() {
     printf("Amount of revenue: $%d\n", machine.revenue);
     printf("Amount of inserted coins: $%d\n", machine.coins);
     printf("Product information:\n");
 
-    char *stock_info = (char *)malloc(100);
-    Product *prd_link = product_get_first();
-    while(prd_link->next) {
-        sprintf(stock_info, "%s", "sold out");
+    
+    ProductService prd_srv = product_factory_make();
+    map_t prod_map =  prd_srv.get_map();
 
-        if (prd_link->stock > 0) {
-            sprintf(stock_info, "%d left", prd_link->stock);
-        }
-        printf("%c. %s ($%d) (%s)\n", prd_link->code, prd_link->name, prd_link->price, stock_info);
-        prd_link = prd_link->next;
-    }
-    free(stock_info);
+    hashmap_iterate(prod_map, _each_product_status, NULL);
 }
 
 int machine_withdraw_all_money() {
@@ -108,6 +115,7 @@ int machine_puchase_product(Product *product) {
 int machine_refill_product(Product *product) {
     int errno = 0;;
     product->stock = MACHINE_MAX_STOCK;
+    printf("product->stock:: %d\n", product->stock);
     _flush_product();
     if (product->stock != MACHINE_MAX_STOCK) {
         errno = 1;

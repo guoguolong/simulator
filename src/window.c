@@ -11,6 +11,15 @@
 #include "includes/product.h"
 #include "includes/machine.h"
 
+typedef struct _PanelData {
+    char *coins;
+    char *product_names;
+    char *product_prices;
+    char *status_flags;
+    char product_code;
+    char count;
+} PanelData;
+
 struct MenuItem menus[] = {
     {'1', "1. Read product information", {
         &(struct MenuItem){'a', "A. Juice ($10)"},
@@ -68,13 +77,13 @@ char** _menu_toplevel_labels() {
     return labels;
 }
 
-char _prompt(char *title, char **items, int is_pointer) {
+char _prompt(char *title, char **items, int is_malloc) {
     puts("\n****************************************");
     puts(title);
     char **iter = items;
     while(*iter) {
         printf("%s\n", *iter);
-        if (is_pointer) {
+        if (is_malloc) {
             free(*iter);
         }
         iter++;
@@ -101,51 +110,51 @@ char _prompt(char *title, char **items, int is_pointer) {
     return c;
 }
 
+int _each_product(any_t handler, any_t item) {
+    Product* prd = (Product*)item;
+    PanelData *panel_data = (PanelData*)handler;
+    
+    char status_flag = ' ';
+    char *sep = "";
+
+    if (panel_data->count == 0) sep = ""; else sep = "    ";
+    sprintf(panel_data->product_names, "%s%s%c", panel_data->product_names, sep, prd->code);
+
+    if (panel_data->count == 0) sep = ""; else sep = "  ";
+    sprintf(panel_data->product_prices, "%s%s$%2d", panel_data->product_prices, sep, prd->price);
+    if (machine.coins > 0 && prd->price <= machine.coins) {
+        if (prd->stock > 0) {
+            status_flag = 'O';
+        } else {
+            status_flag = 'X';
+        }
+    }
+    if (panel_data->count == 0) sep = ""; else sep = "  ";
+    sprintf(panel_data->status_flags, "%s%s[%c]", panel_data->status_flags, sep, status_flag);
+    panel_data->count++;
+    return MAP_OK;
+}
+
 void window_show_home_panel() {
-    struct PanelData {
-        char coins[3];
-        char *product_names;
-        char *product_prices;
-        char *status_flags;
-        char product_code;
-    } panel_data = {
-        "   ",
+    PanelData panel_data = {
+        (char *)malloc(3),
         (char *)malloc(100),
         (char *)malloc(100),
         (char *)malloc(100),
-        '='
+        '=',
+        0
     };
     char *prompt = (char *)malloc(1000);
     
     // 初始值
+    sprintf(panel_data.coins, "%s", "");
     sprintf(panel_data.product_names, "%s", "");
     sprintf(panel_data.product_prices, "%s", "");
     sprintf(panel_data.status_flags, "%s", "");
 
-    int i = 0;
-    Product *product_link = product_get_first();
-    while(product_link->next) {
-        char status_flag = ' ';
-        Product *prd = product_link;
-        char *sep = "";
-
-        if (i == 0) sep = ""; else sep = "    ";
-        sprintf(panel_data.product_names, "%s%s%c", panel_data.product_names, sep, prd->code);
-
-        if (i == 0) sep = ""; else sep = "  ";
-        sprintf(panel_data.product_prices, "%s%s$%2d", panel_data.product_prices, sep, prd->price);
-        if (machine.coins > 0 && prd->price <= machine.coins) {
-            if (prd->stock > 0) {
-                status_flag = 'O';
-            } else {
-                status_flag = 'X';
-            }
-        }
-        if (i == 0) sep = ""; else sep = "  ";
-        sprintf(panel_data.status_flags, "%s%s[%c]", panel_data.status_flags, sep, status_flag);
-        i++;
-        product_link = product_link->next;
-    }
+    ProductService prd_srv = product_factory_make();
+    map_t prod_map = prd_srv.get_map();
+    hashmap_iterate(prod_map, _each_product, &panel_data);
 
     sprintf(panel_data.coins, "%2d", machine.coins);
 
@@ -166,6 +175,7 @@ void window_show_home_panel() {
 
     machine.chose_product_code =  '*'; // 恢复默认值
 
+    free(panel_data.coins);
     free(panel_data.product_names);
     free(panel_data.product_prices);
     free(panel_data.status_flags);
@@ -188,7 +198,7 @@ void window_show_menu(int level, char code) {
             }
         }
         if (code == '3') { //  取出产品.
-            char c = _prompt("(3) Which product button would you like to press?", product_labels(1), 1);
+            char c = _prompt("(3) Which product button would you like to press?", prd_srv.labels(1), 1);
             Product *prd = prd_srv.find_one(c);
             if (prd) {
                 machine_puchase_product(prd);
@@ -243,7 +253,7 @@ void window_show_menu(int level, char code) {
                         printf("$%d is withdrawn.\n", all_money);
                         break;
                     case '3': { // Refill product.
-                        char c = _prompt("(9-3) Which product would you like to refill?", product_labels(1), 1);
+                        char c = _prompt("(9-3) Which product would you like to refill?", prd_srv.labels(1), 1);
 
                         Product* prd = prd_srv.find_one(c);
                         if (prd) {
@@ -257,7 +267,7 @@ void window_show_menu(int level, char code) {
                         break;
                     }
                     case '4': { // Change product.
-                        char c = _prompt("(9-4) Which product would you like to change?", product_labels(1), 1);
+                        char c = _prompt("(9-4) Which product would you like to change?", prd_srv.labels(1), 1);
                         Product *product_p = prd_srv.find_one(c);
                         if (product_p) {
                             printf("You are changing product %c.\n", product_p->code);
