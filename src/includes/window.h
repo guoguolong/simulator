@@ -11,13 +11,13 @@ struct MenuItem {
     struct MenuItem *children[10]; // 子菜单
 };
 
-#define MENU_TOP_ITEMS_NUM 6
+#define MENU_TOP_ITEMS_NUM 7
 #define MENU_ITEMS_NUM 10
 
-void window_show_home_panel();
-char window_show_top_menu();
+void window_show_home_panel(void);
+char window_show_top_menu(void);
 void window_show_menu(int level, char code);
-void window_screen_clear();
+void window_screen_clear(void);
 
 extern struct MenuItem menus[]; 
 #endif

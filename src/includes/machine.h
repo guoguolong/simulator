@@ -16,15 +16,17 @@ struct Machine {
 
 #define MACHINE_MAX_STOCK 10
 
-void machine_status_show();
-int machine_withdraw_all_money();
+void machine_init(char *bin_dir);
+void machine_reset(void);
+void machine_status_show(void);
+int machine_withdraw_all_money(void);
 
 int machine_insert_coins(int);
-void machine_clear_coins();
+void machine_clear_coins(void);
 
-int machine_puchase_product(struct Product *);
-int machine_refill_product(struct Product*);
-void machine_change_product();
+int machine_puchase_product(Product *);
+int machine_refill_product(Product*);
+void machine_change_product(Product *, char *, int, int);
 
 extern struct Machine machine;
 #endif

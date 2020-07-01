@@ -14,6 +14,7 @@
 #define OP_CODE_PRD_PUCHASE '3'
 #define OP_CODE_COIN_OUT '4'
 #define OP_CODE_SERVICE '9'
+#define OP_CODE_RESET 'r'
 #define OP_CODE_QUIT '0'
 #define OP_CODE_EXIT 'q'
 

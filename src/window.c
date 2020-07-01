@@ -38,13 +38,14 @@ struct MenuItem menus[] = {
         &(struct MenuItem){'0', "0. Go back"},
         NULL
     }},
+    {'r', "R. Reset machine & product data"},
     {'0', "0. Quit"}
 };
 
 char** _menu_labels(struct MenuItem *node) {
     char **labels = (char **)malloc(sizeof(char *) * (MENU_ITEMS_NUM + 1));
-    char **ptr = labels;
     int k = 0;
+    char **ptr = labels;
     while(node->children[k]) {
         *ptr = node->children[k]->label;
         ptr++;
@@ -122,10 +123,10 @@ void window_show_home_panel() {
     sprintf(panel_data.status_flags, "%s", "");
 
     int i = 0;
-    struct Product *product_link = product_get_first();
+    Product *product_link = product_get_first();
     while(product_link->next) {
         char status_flag = ' ';
-        struct Product *prd = product_link;
+        Product *prd = product_link;
         char *sep = "";
 
         if (i == 0) sep = ""; else sep = "    ";
@@ -168,9 +169,7 @@ void window_show_home_panel() {
     free(panel_data.product_names);
     free(panel_data.product_prices);
     free(panel_data.status_flags);
-
     free(prompt);
-    prompt = NULL; // 没有后续引用，其实是不必要的.
 }
 
 char window_show_top_menu() {
@@ -179,6 +178,7 @@ char window_show_top_menu() {
 
 void window_show_menu(int level, char code) {
     if (level < 1) return;
+    ProductService prd_srv = product_factory_make();
     struct MenuItem *item;
     if (level == 1) { // 二级菜单.
         for (int i = 0; i < MENU_TOP_ITEMS_NUM; ++i) {
@@ -189,7 +189,7 @@ void window_show_menu(int level, char code) {
         }
         if (code == '3') { //  取出产品.
             char c = _prompt("(3) Which product button would you like to press?", product_labels(1), 1);
-            struct Product *prd = product_choose_one(c);
+            Product *prd = prd_srv.find_one(c);
             if (prd) {
                 machine_puchase_product(prd);
             }
@@ -245,20 +245,20 @@ void window_show_menu(int level, char code) {
                     case '3': { // Refill product.
                         char c = _prompt("(9-3) Which product would you like to refill?", product_labels(1), 1);
 
-                        struct Product* prd = product_choose_one(c);
+                        Product* prd = prd_srv.find_one(c);
                         if (prd) {
-                            int is_full = machine_refill_product(prd);
-                            if (is_full) {
-                                printf("You have refilled product %c to full.\n", prd->code);
-                            } else {
+                            int errno = machine_refill_product(prd);
+                            if (errno) {
                                 printf("You failed to refill product\n");
+                            } else {
+                                printf("You have refilled product %c to full.\n", prd->code);
                             }
                         }
                         break;
                     }
                     case '4': { // Change product.
                         char c = _prompt("(9-4) Which product would you like to change?", product_labels(1), 1);
-                        struct Product *product_p = product_choose_one(c);
+                        Product *product_p = prd_srv.find_one(c);
                         if (product_p) {
                             printf("You are changing product %c.\n", product_p->code);
 
@@ -274,7 +274,6 @@ void window_show_menu(int level, char code) {
 
                             int price;
                             scanf("%d", &price);
-                            printf("price:::::: %d\n", price);
                             getchar();
 
                             machine_change_product(product_p, name, price, MACHINE_MAX_STOCK);

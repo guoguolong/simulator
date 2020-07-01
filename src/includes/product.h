@@ -6,19 +6,31 @@
 #ifndef __PRODUCT_H__
 #define __PRODUCT_H__
 
-struct Product {
+typedef struct _Product {
     char code;
     char *name;
     int price;
     int stock;
-    struct Product *next;
-};
+    struct _Product *next;
+    struct _Product *head;
+} Product;
 
-void product_list();
+typedef Product* (*ProductFindOne)(char);
+typedef void (*ProductList)(void);
+typedef void (*ProductReset)(void);
+typedef void (*ProductFlush)(void);
+typedef int (*ProductLoad)(char *bin_dir);
+
+typedef struct _ProductService {
+    ProductFindOne find_one;
+    ProductList list;
+    ProductFlush flush;
+    ProductLoad load;
+    ProductReset reset;
+} ProductService;
+
 char** product_labels(int go_back);
-struct Product* product_get_first();
-struct Product* product_choose_one(char code);
-void product_init(int stock);
+Product* product_get_first(void);
+ProductService product_factory_make(void);
 
-extern struct Product *product_link;
 #endif
